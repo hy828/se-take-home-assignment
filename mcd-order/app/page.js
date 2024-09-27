@@ -1,89 +1,82 @@
 "use client"
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 let orderIdCounter = 1;
-let botIdCounter = 1;
-let orderQueue = [];
-let freeBots = [];
 
 export default function Home() {
   const [orders, setOrders] = useState([]);
-  const [completedOrders, setCompletedOrders] = useState([]);
   const [bots, setBots] = useState([]);
+
+  const pendingOrders = useMemo(() => orders.filter(order => order.status === 'Pending' || order.status === 'Processing'), [orders]);
+  const completedOrders = useMemo(() => orders.filter(order => order.status === 'Completed'), [orders]);
 
   // Add order function
   const addOrder = (type) => {
-    const newOrder = { id: orderIdCounter, type, status: 'Pending', bot: null };
-    orderIdCounter++;
-
-    // Update external order queue
-    if (type === 'VIP') {
-      const normalIndex = orderQueue.findIndex(order => order.type === 'Normal');
-      if (normalIndex === -1) {
-        orderQueue.unshift(newOrder); // Add VIP order to the front
-      } else {
-        orderQueue.splice(normalIndex, 0, newOrder); // Insert VIP before normal orders
-      }
-    } else {
-      orderQueue.push(newOrder); // Normal order goes to the end
-    }
+    const newOrder = { id: orderIdCounter++, type, status: 'Pending', bot: null };
 
     // Update state to reflect new orders in the UI
-    setOrders([...orderQueue]);
+    setOrders(prevOrders => {
+      if (type === 'VIP') {
+        const index = prevOrders.findIndex(order => order.type === 'Normal');
+        if (index === -1) {
+          return [newOrder, ...prevOrders];
+        } else {
+          return [
+            ...prevOrders.slice(0, index),
+            newOrder,
+            ...prevOrders.slice(index)
+          ];
+        }
+      }
+      return [...prevOrders, newOrder];
+    });
   };
 
   // Add a new bot
   const addBot = () => {
-    const newBot = { id: botIdCounter, status: 'Idle', order: null, progress: 0 };
-    botIdCounter++;
-    freeBots.push(newBot);
-    setBots([...freeBots]);
+    const newBot = { id: bots.length + 1, status: 'Idle', order: null, progress: 0 };
+    setBots(prevBots => [...prevBots, newBot]);
   };
 
   // Remove the latest bot
   const removeBot = () => {
-    botIdCounter--;
     setBots(prevBots => {
       const botToRemove = prevBots[prevBots.length - 1];
-      const order = orderQueue.find(order => order.bot?.id === botToRemove.id);
-      if(order) order.status = 'Pending';
-      freeBots = freeBots.filter(bot => bot.id !== botToRemove.id);
+      if (botToRemove) {
+        // If the bot is processing an order, set the order status to pending
+        const order = orders.find(order => order.bot?.id === botToRemove.id && order.status === 'Processing');
+        if(order) setOrders(prevOrders => prevOrders.map(o => o.id === order.id ? { ...order, status: 'Pending', bot: null } : o));
+      }
       return prevBots.slice(0, prevBots.length - 1);
     });
-  }; 
+  };
 
   // Bot processing logic
   useEffect(() => {
+    // Find the first pending order and idle bot
+    const order = orders.find(order => order.status === 'Pending');
+    const bot = bots.find(bot => bot.status === 'Idle');
+    // If both are found, assign the order to the bot
+    if(order !== undefined && bot !== undefined) {
+      const updatedOrder = { ...order, status: 'Processing', bot: bot };
+      const updatedBot = { ...bot, status: 'Processing', order: updatedOrder, progress: 0 };
+      setOrders(prevOrders => prevOrders.map(o => o.id === order.id ? updatedOrder : o));
+      setBots(prevBots => prevBots.map(b => b.id === bot.id ? updatedBot : b));
+    }
+
+    // Update bot progress
     const interval = setInterval(() => {
-      if(orderQueue.length > 0 && freeBots.length > 0) {
-        const order = orderQueue.find(order => order.status === 'Pending');
-        if(order !== undefined) {
-          const bot = freeBots.shift();
-          order.status = 'Processing';
-          order.bot = bot;
-          bot.status = 'Processing';
-          bot.order = order;
-          bot.progress = 0;
-        }
-        
-      }
       setBots(prevBots => {
         return prevBots.map(bot => {
           if (bot.status === 'Processing' && bot.order.status === 'Processing') {
-            if (bot.progress >= 100) {
-              bot.order.status = 'Completed';
-              bot.status = 'Idle';
-              // Move order to completed
-              setCompletedOrders(prevCompleted => [...prevCompleted, bot.order]);
-              freeBots.push(bot);
-              freeBots.sort((a, b) => a.id - b.id);
-              orderQueue = orderQueue.filter(order => order.id !== bot.order.id);
-              setOrders([...orderQueue]);
+            if (bot.progress >= 100) { // If bot has completed the order
+              const updatedOrder = { ...bot.order, status: 'Completed' };
+              setOrders(prevOrders => prevOrders.map(o => o.id === bot.order.id ? updatedOrder : o));
   
-              return { ...bot, status: 'Idle', order: null }; // Set bot to idle after completion
+              return { ...bot, status: 'Idle', order: null, progress: 0 }; // Set bot to idle after completion
             } else {
               // Increment the bot's progress
-              bot.progress += 10;
+              bot.progress += 5;
             }
           }
           return bot;
@@ -92,7 +85,7 @@ export default function Home() {
     }, 1000); // Update every second
   
     return () => clearInterval(interval);
-  }, [bots, orders]);
+  }, [orders, bots]);
   
 
   return (
@@ -123,9 +116,9 @@ export default function Home() {
         <div className="flex-1 border-2 rounded-md border-yellow-200 m-5">
           <h2 className="text-lg font-semibold text-center bg-yellow-200 p-2">Pending Orders</h2>
           <ul className="p-4 h-[85%] overflow-auto">
-            {orders.map(order => (
+            {pendingOrders.map(order => (
               <li key={order.id} className={`mb-2 ${order.type === 'VIP' ? 'text-red-500' : 'text-black'}`}>
-                Order #{order.id} ({order.type} Customer) ({order.status})
+                Order #{order.id} ({order.type} Customer) ({order.status}{order.status === 'Processing' ? ` by Bot #${order.bot.id}` : ''})
               </li>
             ))}
           </ul>
@@ -156,7 +149,10 @@ export default function Home() {
           </button>
           <button 
             onClick={removeBot}
-            className="rounded px-4 py-2 m-2 bg-blue-500 text-white"
+            disabled={bots.length === 0}
+            className={`rounded px-4 py-2 m-2 text-white ${
+              bots.length === 0 ? 'bg-gray-500 cursor-not-allowed' : 'bg-blue-500'
+            }`}
           >
             - Bot
           </button>
