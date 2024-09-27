@@ -1,101 +1,172 @@
-import Image from "next/image";
+"use client"
+import { useState, useEffect } from 'react';
+
+let orderIdCounter = 1;
+let botIdCounter = 1;
+let orderQueue = [];
+let freeBots = [];
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [orders, setOrders] = useState([]);
+  const [completedOrders, setCompletedOrders] = useState([]);
+  const [bots, setBots] = useState([]);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+  // Add order function
+  const addOrder = (type) => {
+    const newOrder = { id: orderIdCounter, type, status: 'Pending', bot: null };
+    orderIdCounter++;
+
+    // Update external order queue
+    if (type === 'VIP') {
+      const normalIndex = orderQueue.findIndex(order => order.type === 'Normal');
+      if (normalIndex === -1) {
+        orderQueue.unshift(newOrder); // Add VIP order to the front
+      } else {
+        orderQueue.splice(normalIndex, 0, newOrder); // Insert VIP before normal orders
+      }
+    } else {
+      orderQueue.push(newOrder); // Normal order goes to the end
+    }
+
+    // Update state to reflect new orders in the UI
+    setOrders([...orderQueue]);
+  };
+
+  // Add a new bot
+  const addBot = () => {
+    const newBot = { id: botIdCounter, status: 'Idle', order: null, progress: 0 };
+    botIdCounter++;
+    freeBots.push(newBot);
+    setBots([...freeBots]);
+  };
+
+  // Remove the latest bot
+  const removeBot = () => {
+    botIdCounter--;
+    setBots(prevBots => {
+      const botToRemove = prevBots[prevBots.length - 1];
+      const order = orderQueue.find(order => order.bot.id === botToRemove.id);
+      order.status = 'Pending';
+      freeBots = freeBots.filter(bot => bot.id !== botToRemove.id);
+      return prevBots.slice(0, prevBots.length - 1);
+    });
+  }; 
+
+  // Bot processing logic
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if(orderQueue.length > 0 && freeBots.length > 0) {
+        const order = orderQueue.find(order => order.status === 'Pending');
+        if(order !== undefined) {
+          const bot = freeBots.shift();
+          order.status = 'Processing';
+          order.bot = bot;
+          bot.status = 'Processing';
+          bot.order = order;
+          bot.progress = 0;
+        }
+        
+      }
+      setBots(prevBots => {
+        return prevBots.map(bot => {
+          if (bot.status === 'Processing' && bot.order.status === 'Processing') {
+            if (bot.progress >= 100) {
+              bot.order.status = 'Completed';
+              bot.status = 'Idle';
+              // Move order to completed
+              setCompletedOrders(prevCompleted => [...prevCompleted, bot.order]);
+              freeBots.push(bot);
+              freeBots.sort((a, b) => a.id - b.id);
+              orderQueue = orderQueue.filter(order => order.id !== bot.order.id);
+              setOrders([...orderQueue]);
+  
+              return { ...bot, status: 'Idle', order: null }; // Set bot to idle after completion
+            } else {
+              // Increment the bot's progress
+              bot.progress += 10;
+            }
+          }
+          return bot;
+        });
+      });
+    }, 1000); // Update every second
+  
+    return () => clearInterval(interval);
+  }, [bots, orders]);
+  
+
+  return (
+    <div className="p-5">
+      <div className="mb-4">
+        <button 
+          onClick={() => addOrder('Normal')}
+          className="border border-black rounded px-4 py-2 mr-2 text-black hover:bg-black hover:text-white"
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          New Normal Order
+        </button>
+        <button 
+          onClick={() => addOrder('VIP')}
+          className="border border-red-500 rounded px-4 py-2 text-red-500 hover:bg-red-500 hover:text-white"
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          New VIP Order
+        </button>
+      </div>
+      <div className="mb-4">
+        <h3 className="text-lg font-bold">Pending Orders</h3>
+        <ul className="bg-yellow-200 p-4 rounded h-4">
+          {orders.map(order => (
+            <li key={order.id} className={`mb-2 ${order.type === 'VIP' ? 'text-red-500' : 'text-black'}`}>
+              Order #{order.id} ({order.type})({order.status})
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="mb-4">
+        <h3 className="text-lg font-bold">Complete Orders</h3>
+        <ul className="bg-green-200 p-4 rounded">
+          {completedOrders.map(order => (
+            <li key={order.id} className={`mb-2 ${order.type === 'VIP' ? 'text-red-500' : 'text-black'}`}>
+              Order #{order.id} ({order.type})
+            </li>
+          ))}
+        </ul>
+      </div>
+      <div className="mb-4">
+        <button
+          onClick={addBot}
+          className="border border-blue-500 rounded px-4 py-2 mr-2 text-blue-500 hover:bg-blue-500 hover:text-white"
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          + Bot
+        </button>
+        <button 
+          onClick={removeBot}
+          className="border border-gray-500 rounded px-4 py-2 text-gray-500 hover:bg-gray-500 hover:text-white"
+        >
+          - Bot
+        </button>
+      </div>
+      <div>
+        <h3 className="text-lg font-bold">Bots</h3>
+        <ul className="bg-gray-200 p-4 rounded">
+          {bots.map(bot => (
+            <li key={bot.id} className="mb-4">
+              <div className="mb-2">
+                Bot #{bot.id} - {bot.status} {bot.status === 'Processing' ? `(Processing Order #${bot.order.id})` : ""}
+              </div>
+              {bot.status === 'Processing' && (
+                <div className="relative pt-1">
+                  <div className="overflow-hidden h-2 mb-4 text-xs flex rounded bg-gray-300">
+                    <div 
+                      style={{ width: `${bot.progress || 0}%` }} 
+                      className="shadow-none flex flex-col text-center whitespace-nowrap text-white justify-center bg-blue-500"
+                    ></div>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }
