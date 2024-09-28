@@ -76,7 +76,7 @@ export default function Home() {
               return { ...bot, status: 'Idle', order: null, progress: 0 }; // Set bot to idle after completion
             } else {
               // Increment the bot's progress
-              bot.progress += 5;
+              bot.progress += 10;
             }
           }
           return bot;
