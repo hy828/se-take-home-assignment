@@ -51,7 +51,7 @@ export default function Home() {
     });
   };
 
-  // Bot processing logic
+  // Order and Bot processing logic
   useEffect(() => {
     // Find the first pending order and idle bot
     const order = orders.find(order => order.status === 'Pending');
@@ -63,7 +63,10 @@ export default function Home() {
       setOrders(prevOrders => prevOrders.map(o => o.id === order.id ? updatedOrder : o));
       setBots(prevBots => prevBots.map(b => b.id === bot.id ? updatedBot : b));
     }
-
+  }, [orders, bots]);
+  
+  // Bot processing logic
+  useEffect(() => {
     // Update bot progress
     const interval = setInterval(() => {
       setBots(prevBots => {
@@ -85,8 +88,7 @@ export default function Home() {
     }, 1000); // Update every second
   
     return () => clearInterval(interval);
-  }, [orders, bots]);
-  
+  }, []);
 
   return (
     <div className="flex flex-col items-center h-screen">
