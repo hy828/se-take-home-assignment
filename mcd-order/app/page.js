@@ -116,10 +116,10 @@ export default function Home() {
       <div className="flex w-full h-[50%]">
         {/* Pending Orders */}
         <div className="flex-1 border-2 rounded-md border-yellow-200 m-5">
-          <h2 className="text-lg font-semibold text-center bg-yellow-200 p-2">Pending Orders</h2>
+          <h2 className="text-lg font-semibold text-center bg-yellow-200 p-2 dark:text-black">Pending Orders</h2>
           <ul className="p-4 h-[85%] overflow-auto">
             {pendingOrders.map(order => (
-              <li key={order.id} className={`mb-2 ${order.type === 'VIP' ? 'text-red-500' : 'text-black'}`}>
+              <li key={order.id} className={`mb-2 ${order.type === 'VIP' ? 'text-red-500' : 'text-black'} dark:text-white`}>
                 Order #{order.id} ({order.type} Customer) ({order.status}{order.status === 'Processing' ? ` by Bot #${order.bot.id}` : ''})
               </li>
             ))}
@@ -128,10 +128,10 @@ export default function Home() {
 
         {/* Completed Orders */}
         <div className="flex-1 border-2 rounded-md border-green-300 m-5">
-          <h2 className="text-lg font-semibold text-center bg-green-300 p-2">Completed Orders</h2>
+          <h2 className="text-lg font-semibold text-center bg-green-300 p-2 dark:text-black">Completed Orders</h2>
           <ul className="p-4 h-[85%] overflow-auto">
             {completedOrders.map(order => (
-              <li key={order.id} className={`mb-2 ${order.type === 'VIP' ? 'text-red-500' : 'text-black'}`}>
+              <li key={order.id} className={`mb-2 ${order.type === 'VIP' ? 'text-red-500' : 'text-black'} dark:text-white`}>
                 Order #{order.id} ({order.type} Customer)
               </li>
             ))}
@@ -142,7 +142,7 @@ export default function Home() {
       {/* Bot Section */}
       <div className="flex flex-row m-4 w-full h-[30%]">
         {/* Button */}
-        <div className="p-4 flex flex-col w-[7%]">
+        <div className="p-4 flex flex-col w-[10%]">
           <button
             onClick={addBot}
             className="rounded px-4 py-2 m-2 bg-blue-500 text-white"
@@ -160,7 +160,7 @@ export default function Home() {
           </button>
         </div>
 
-        <div className="flex flex-start overflow-x-auto border-2 border-blue-800 rounded w-[100%] mr-4">
+        <div className="flex flex-start overflow-x-auto border-2 border-blue-800 rounded w-[100%] mr-4  dark:text-black">
           {bots.map(bot => (
             <div key={bot.id} className="border rounded p-4 m-2 bg-blue-200 w-48 flex-shrink-0">
               <div>Bot #{bot.id}</div>
